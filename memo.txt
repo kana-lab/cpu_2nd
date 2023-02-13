@@ -1,0 +1,4 @@
+ipディレクトリのファイルに関しては、vivadoでインポートできないことがある
+その場合はadd design sourceする際に「copy sources into project」にチェックを入れて試すこと
+インポート後のファイルを右クリックして「upgrade IP」を試すのも手
+また、同じく右クリックしてGenerate Output Productsを実行すると上手くいく場合もある
