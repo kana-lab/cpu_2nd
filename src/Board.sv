@@ -114,7 +114,7 @@ module Board #(
     assign send_from_core.busy = tx_busy;
 
     // コアの宣言
-    DummyCore core(
+    Core core(
         .clock, .reset(cpu_reset), .instr_mem(instr_to_core.master),
         .cache(cache_core_bus.master), .io_send(send_from_core.master),
         .io_recv(recv_to_core.master)
