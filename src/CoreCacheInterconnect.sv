@@ -24,7 +24,7 @@ module CoreCacheInterconnect (
     ICache.slave request
 );
     // stall中にwd, addrが保存されるようにする
-    reg [31:0] wd_saved;
+    r32 wd_saved;
     reg [26:0] addr_saved;
     always_ff @(posedge clock) begin
         if (cpu_reset) begin
@@ -35,7 +35,7 @@ module CoreCacheInterconnect (
             addr_saved <= request.addr[26:0];
         end
     end
-    wire [31:0] w_data = (request.en) ? request.wd : wd_saved;
+    w32 w_data = (request.en) ? request.wd : wd_saved;
     wire [26:0] addr = (request.en) ? request.addr[26:0] : addr_saved;
 
     // interfaces

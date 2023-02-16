@@ -2,9 +2,9 @@
 interface ICache;
     wire en;
     wire we;
-    wire [31:0] addr;
-    wire [31:0] rd;
-    wire [31:0] wd;
+    w32 addr;
+    w32 rd;
+    w32 wd;
     wire stall;
 
     modport master (

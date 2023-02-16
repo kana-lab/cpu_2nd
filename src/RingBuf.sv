@@ -6,16 +6,16 @@ module RingBuf #(
     input wire reset,
 
     input wire we,
-    input wire [31:0] wd,
+    input w32 wd,
     input wire re,
-    output wire [31:0] rd,
-    output wire [31:0] size,
+    output w32 rd,
+    output w32 size,
     output reg overflow
 );
-    reg [31:0] m[BUF_SIZE - 1:0];
+    r32 m[BUF_SIZE - 1:0];
 
-    reg [31:0] m_start;
-    reg [31:0] m_end;
+    r32 m_start;
+    r32 m_end;
     assign size = (BUF_SIZE + m_end - m_start) % BUF_SIZE;
     assign rd = m[m_start];
 
@@ -26,18 +26,18 @@ module RingBuf #(
             overflow <= 0;
         end else begin
             if (we) begin
-                m_end <= (m_end + 32'd1) % BUF_SIZE;
+                m_end <= (m_end + 'd1) % BUF_SIZE;
                 m[m_end] <= wd;
 
                 if (size == BUF_SIZE - 1 && ~re) begin
-                    overflow <= 1'b1;
-                    m_start <= (m_start + 32'd1) % BUF_SIZE;
+                    overflow <= 'd1;
+                    m_start <= (m_start + 'd1) % BUF_SIZE;
                 end
             end
 
             if (re) begin
                 overflow <= 0;
-                m_start <= (m_start + 32'd1) % BUF_SIZE;
+                m_start <= (m_start + 'd1) % BUF_SIZE;
             end
         end
     end

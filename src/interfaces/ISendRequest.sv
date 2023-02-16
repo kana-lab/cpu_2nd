@@ -5,7 +5,7 @@ interface ISendRequest;
     // おそらくイネーブルの伝え方には二種類のタイミングがあり、
     // これはクロックに同期したタイミングを採用している
     reg en;
-    reg [31:0] content;  // 下位8bitのみ送られる
+    r32 content;  // 下位8bitのみ送られる
     wire busy;
 
     modport master (
@@ -17,4 +17,9 @@ interface ISendRequest;
         input en, content,
         output busy
     );
+
+    task send(input [31:0] data);
+        en <= 'd1;
+        content <= data;
+    endtask
 endinterface

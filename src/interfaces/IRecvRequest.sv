@@ -3,8 +3,8 @@
 // 組み合わせ回路的に実装されるため、enがONなら直ぐにrdが得られる
 interface IRecvRequest;
     wire en;
-    wire [31:0] rd;
-    wire [31:0] size;
+    w32 rd;
+    w32 size;
 
     modport master (
         input rd, size,

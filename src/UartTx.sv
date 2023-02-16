@@ -6,7 +6,7 @@ module UartTx #(
     output reg txd,
     
     input wire tx_start,
-    input wire [7:0] sdata,
+    input w8 sdata,
     output wire tx_busy
 );
     localparam CLK_PER_ONE_BIT = CLK_PER_HALF_BIT * 2;
@@ -20,11 +20,11 @@ module UartTx #(
     wire [2:0] next_state = {state[1:0], state[2]};
 
     // データ転送のタイミングを判断するためのclockのカウンタ
-    reg [31:0] counter;
+    r32 counter;
 
     // 送信するデータのバッファと送信したbit数を表すシフトレジスタ
-    reg [7:0] txbuf;
-    wire [7:0] next_txbuf = {1'b1, txbuf[7:1]};
+    r8 txbuf;
+    w8 next_txbuf = {1'b1, txbuf[7:1]};
     reg [9:0] n_sent;
     wire [9:0] next_n_sent = {n_sent[8:0], n_sent[9]};
 
@@ -34,16 +34,16 @@ module UartTx #(
     always_ff @(posedge clock) begin
         if (reset) begin
             tx_busy_1clock_behind <= 0;
-            txd <= 1'b1;
+            txd <= 'd1;
 
-            state <= 3'b1;
-            n_sent <= 10'b1;
+            state <= 'd1;
+            n_sent <= 'd1;
         end else begin
             if (state[0] & tx_start) begin
                 counter <= 0;
                 txbuf <= sdata;
                 state <= next_state;
-                tx_busy_1clock_behind <= 1'b1;
+                tx_busy_1clock_behind <= 'd1;
                 txd <= 0;
             end
 
@@ -54,7 +54,7 @@ module UartTx #(
                     txbuf <= next_txbuf;
                     n_sent <= next_n_sent;
                 end else begin
-                    counter <= counter + 32'd1;
+                    counter <= counter + 'd1;
                 end
 
                 if (n_sent[9]) begin
@@ -68,10 +68,9 @@ module UartTx #(
                     tx_busy_1clock_behind <= 0;
                     state <= next_state;
                 end else begin
-                    counter <= counter + 32'd1;
+                    counter <= counter + 'd1;
                 end
             end
         end
     end
-    
 endmodule

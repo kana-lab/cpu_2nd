@@ -9,12 +9,12 @@ module DummyCore (
     ISendRequest.master io_send,
     IRecvRequest.master io_recv
 );
-    reg [31:0] counter;
-    reg [31:0] m[100:0];
+    r32 counter;
+    r32 m[100:0];
     reg phase;
 
     assign instr_mem.addr = counter;
-    assign io_recv.en = (counter <= 32'd10 || counter > 32'd20 || io_recv.size == 32'd0) ? 1'b0 : ~phase;
+    assign io_recv.en = (counter <= 'd10 || counter > 'd20 || io_recv.size == 'd0) ? 'b0 : ~phase;
     // assign io_send.en = (io_send.busy == 1'b0 && counter < 32'd20) ? phase : 1'b0;
     // assign io_send.content = m[counter];
     
@@ -27,23 +27,26 @@ module DummyCore (
             if (io_send.en) io_send.en <= 0;
 
             if (~phase) begin
-                if (counter <= 32'd10) begin
-                    counter <= counter + 32'd1;
+                if (counter <= 'd10) begin
+                    counter <= counter + 'd1;
                     if (counter > 0) begin
-                        m[counter - 32'd1] <= instr_mem.instr;
+                        m[counter - 'd1] <= instr_mem.instr;
                     end
-                end else if (counter <= 32'd20 && io_recv.size > 0) begin
-                    counter <= counter + 32'd1;
-                    m[counter - 32'd1] <= io_recv.rd;
+                end else if (counter <= 'd20) begin
+                    if (io_recv.size > 0) begin
+                        counter <= counter + 'd1;
+                        m[counter - 'd1] <= io_recv.rd;
+                    end
                 end else begin
-                    phase <= 1'b1;
+                    phase <= 'd1;
                     counter <= 0;
                 end
             end else begin
-                if (io_send.busy == 1'b0 && counter < 32'd20) begin
-                    counter <= counter + 32'd1;
-                    io_send.en <= 1'b1;
-                    io_send.content <= m[counter];
+                if (io_send.busy == 'd0 && counter < 'd20) begin
+                    counter <= counter + 'd1;
+                    // io_send.en <= 1'b1;
+                    // io_send.content <= m[counter];
+                    io_send.send(m[counter]);
                 end
             end
         end

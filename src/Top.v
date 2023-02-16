@@ -6,11 +6,8 @@ module Top #(
 ) (
     input wire CLK100MHZ,
     input wire CPU_RESETN,
-    // input wire resetn,
     input wire UART_TXD_IN,
     output wire UART_RXD_OUT,
-    // output wire [15:0] LED,
-    // input wire [15:0] SW,
 
     // DDR2
     output wire [12:0] ddr2_addr,
@@ -29,7 +26,7 @@ module Top #(
     output wire [0:0] ddr2_odt
 );
     Board #(CLK_PER_SEC, BAUD_RATE) board(
-        CLK100MHZ, CPU_RESETN, UART_TXD_IN, UART_RXD_OUT,// LED, SW,
+        CLK100MHZ, CPU_RESETN, UART_TXD_IN, UART_RXD_OUT,
         ddr2_addr, ddr2_ba, ddr2_cas_n, ddr2_ck_n, ddr2_ck_p, ddr2_cke,
         ddr2_ras_n, ddr2_we_n, ddr2_dq, ddr2_dqs_n, ddr2_dqs_p, ddr2_cs_n,
         ddr2_dm, ddr2_odt

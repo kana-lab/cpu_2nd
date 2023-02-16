@@ -7,9 +7,9 @@ module InstructionMemory #(
     IInstr.slave request,
 
     input wire push,
-    input wire [31:0] push_data
+    input w32 push_data
 );
-    (* ram_style = "block" *) reg [31:0] bram[INSTR_MEM_SIZE - 1:0];
+    (* ram_style = "block" *) r32 bram[INSTR_MEM_SIZE - 1:0];
 
     reg [15:0] counter;
     always_ff @(posedge clock) begin
@@ -17,7 +17,7 @@ module InstructionMemory #(
             counter <= 0;
         end else begin
             if (push) begin
-                counter <= counter + 16'd1;
+                counter <= counter + 'd1;
                 bram[counter] <= push_data;
             end else begin
                 request.instr <= bram[request.addr];

@@ -3,7 +3,7 @@ module IFStage (
     input wire reset,
     input wire stall,
 
-    // 分岐用 (EX stageのBranch Unitから飛んでくる)
+    // 分岐用 (EX stageのBranch UnitとID stageのforce_jmpから飛んでくる)
     input wire pred_failed,
     input wire [31:0] new_pc,
 
@@ -161,7 +161,21 @@ endmodule
 
 
 module EX_MEMStage (
+    input wire clock,
+    input wire reset,
 
+    // ID stageの出力
+    IAluInput.master alu,
+    IFpuInput.master fpu,
+    IBuInput.master bu,
+    IDevice.master device,
+
+    output reg [31:0] dest_reg,
+    output reg jr_en,
+    output reg [31:0] jr_addr
+
+    // write back用の出力
+    
 );
 endmodule
 

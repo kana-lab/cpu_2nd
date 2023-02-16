@@ -6,17 +6,17 @@ module BootLoader #(
 
     // UARTのレシーバからの信号
     input wire rx_ready,
-    input wire [7:0] rdata,
+    input w8 rdata,
 
     // UARTのセンダーからの/への信号
     input wire tx_busy,
     output reg tx_start,
-    output reg [7:0] sdata,
+    output r8 sdata,
 
     // 受け取ったデータ
     output reg instr_ready,
     output reg data_ready,
-    output reg [31:0] content,
+    output r32 content,
 
     // ブート終了を表す信号
     output wire program_loaded
@@ -37,19 +37,19 @@ module BootLoader #(
     reg [3:0] n_byte;
     wire [3:0] next_n_byte = {n_byte[2:0], n_byte[3]};
 
-    wire [31:0] next_content = {rdata, content[31:8]};
+    w32 next_content = {rdata, content[31:8]};
 
     // プログラムサイズ(little endian)
-    reg [31:0] program_size;
-    reg [31:0] program_received;
+    r32 program_size;
+    r32 program_received;
 
     // 0x99を送り続ける間隔
-    reg [7:0] counter;
+    r8 counter;
 
     always_ff @(posedge clock) begin
         if (reset) begin
-            state <= 4'b1;
-            n_byte <= 4'b1;
+            state <= 'd1;
+            n_byte <= 'd1;
             program_size <= 0;
             program_received <= 0;
             counter <= 0;
@@ -65,21 +65,21 @@ module BootLoader #(
             // 最初に0x99を繰り返し送り、PC側が反応を示すのを待つ
             if (state[0]) begin
                 if (counter >= INTERVAL_0x99 && ~tx_busy) begin
-                    tx_start <= 1'b1;
-                    sdata <= 8'h99;
+                    tx_start <= 'd1;
+                    sdata <= 'h99;
                     counter <= 0;
                 end else begin
-                    counter <= counter + 8'd1;
+                    counter <= counter + 'd1;
                 end
 
                 if (rx_ready)
                     state <= next_state;
             end
 
-            if (state[2] == 1'b1 && program_size == program_received) begin
+            if (state[2] == 'd1 && program_size == program_received) begin
                 if (~tx_busy) begin
-                    tx_start <= 1'b1;
-                    sdata <= 8'haa;
+                    tx_start <= 'd1;
+                    sdata <= 'haa;
                     state <= next_state;
                 end
             end
@@ -96,12 +96,12 @@ module BootLoader #(
                 end
 
                 if (state[2]) begin
-                    program_received <= program_received + 32'd1;
-                    if (n_byte[3]) instr_ready <= 1'b1;
+                    program_received <= program_received + 'd1;
+                    if (n_byte[3]) instr_ready <= 'd1;
                 end
 
                 if (state[3] & n_byte[3]) begin
-                    data_ready <= 1'b1;
+                    data_ready <= 'd1;
                 end
             end
         end
