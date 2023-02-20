@@ -1,3 +1,5 @@
+`include "../typedefs.svh"
+
 // enはreset中、stall中にONにならないようにすべき
 interface ICache;
     wire en;

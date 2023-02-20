@@ -1,3 +1,5 @@
+`include "typedefs.svh"
+
 module InstructionMemory #(
     INSTR_MEM_SIZE = 32'h8000
 ) (

@@ -1,3 +1,5 @@
+`include "typedefs.svh"
+
 // キャッシュを構築する
 // キャッシュとコアの仕様の違いを吸収する
 module CoreCacheInterconnect (
@@ -35,7 +37,8 @@ module CoreCacheInterconnect (
             addr_saved <= request.addr[26:0];
         end
     end
-    w32 w_data = (request.en) ? request.wd : wd_saved;
+    w32 w_data;
+    assign w_data = (request.en) ? request.wd : wd_saved;
     wire [26:0] addr = (request.en) ? request.addr[26:0] : addr_saved;
 
     // interfaces

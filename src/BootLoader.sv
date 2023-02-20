@@ -1,3 +1,5 @@
+`include "typedefs.svh"
+
 module BootLoader #(
     INTERVAL_0x99 = 100
 ) (

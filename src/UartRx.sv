@@ -1,3 +1,5 @@
+`include "typedefs.svh"
+
 module UartRx #(
     CLK_PER_HALF_BIT = 30
 ) (

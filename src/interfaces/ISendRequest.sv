@@ -1,3 +1,5 @@
+`include "../typedefs.svh"
+
 // UARTでデータを送信する事を要求するバスを表す
 // busy == 1'b1 のときにenをONにすると要求は無視される
 interface ISendRequest;

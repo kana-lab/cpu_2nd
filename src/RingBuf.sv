@@ -1,3 +1,5 @@
+`include "typedefs.svh"
+
 // このモジュールは要テスト
 module RingBuf #(
     BUF_SIZE = 32'd512
@@ -8,7 +10,7 @@ module RingBuf #(
     input wire we,
     input w32 wd,
     input wire re,
-    output w32 rd,
+    output r32 rd,
     output w32 size,
     output reg overflow
 );
@@ -17,7 +19,7 @@ module RingBuf #(
     r32 m_start;
     r32 m_end;
     assign size = (BUF_SIZE + m_end - m_start) % BUF_SIZE;
-    assign rd = m[m_start];
+    // assign rd = m[m_start];
 
     always_ff @(posedge clock) begin
         if (reset) begin
@@ -38,6 +40,7 @@ module RingBuf #(
             if (re) begin
                 overflow <= 0;
                 m_start <= (m_start + 'd1) % BUF_SIZE;
+                rd <= m[m_start];
             end
         end
     end
