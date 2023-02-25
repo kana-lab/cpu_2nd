@@ -124,4 +124,22 @@ interface IPushCommit;
     );
 endinterface
 
+typedef struct {
+    u8 commit_id;
+    logic en;
+    logic kind;  // 0: branch, 1: wb
+    union {
+        struct {
+            u8 dest_phys;
+            u32 data;
+        } wb;
+        struct {
+            logic raise;
+            logic taken;
+            u16 new_pc;
+            logic [21:0] buf_;
+        } branch;
+    } content;
+} Result;
+
 `endif  // BUS

@@ -101,36 +101,3 @@ module RegisterFile (
         end
     end
 endmodule
-
-// instructionからsrc/destを抽出し、タグを与える
-module Extractor (
-    input wire clock,
-    input wire flash,
-    input wire stall,
-
-    input w32 instr,
-
-    output wire dest_en,
-    output w8 dest_logic,
-    // output w64 dest_phys,
-    output w8 src1,
-    output w8 src2
-);
-    // r64 tag_generator;
-
-    assign dest_en = instr[31] & stall;
-    assign dest_logic = (
-        instr[31:30] == 'b00 && instr[27:26] == 'b11
-    ) ? instr[7:0] : instr[23:16];
-    // assign dest_phys = tag_generator;
-    assign src1 = instr[15:8];
-    assign src2 = instr[7:0];
-
-    // always_ff @(posedge clock) begin
-    //     if (flash) begin
-    //         tag_generator <= 0;
-    //     end else if (dest_en) begin
-    //         tag_generator <= tag_generator + 'd1;
-    //     end
-    // end
-endmodule
