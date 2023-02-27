@@ -124,16 +124,16 @@ interface IPushCommit;
     );
 endinterface
 
-typedef struct {
+typedef struct packed {
     u8 commit_id;
     logic en;
     logic kind;  // 0: branch, 1: wb
-    union {
-        struct {
+    union packed {
+        struct packed {
             u8 dest_phys;
             u32 data;
         } wb;
-        struct {
+        struct packed {
             logic raise;
             logic taken;
             u16 new_pc;
