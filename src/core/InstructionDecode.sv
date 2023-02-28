@@ -129,11 +129,13 @@ module decode_uart_instr (
     input w32 instr,
     input w64 dest_phys,
     input Source src2,
+    input w8 commit_id,
     output wire uart_en,
     output UartInstr uart_instr
 );
     assign uart_en = (~((instr[31] ^ instr[30]) | instr[27] | ~instr[26])) ? ~flash : 0;
 
+    assign uart_instr.commit_id = commit_id;
     assign uart_instr.sr = instr[31];
     always_comb begin
         if (uart_instr.sr) begin
@@ -151,13 +153,14 @@ module create_commit (
     output CommitEntry commit_entry
 );
     assign commit_entry.kind = (instr[31] & ~instr[30]) | (instr[31] & instr[30] & instr[27]);
+    assign commit_entry.notify_only = instr[31] & instr[30] & ~instr[29] & ~instr[27];
     always_comb begin
         if (commit_entry.kind) begin
-            commit_entry.branch.fin = 'd0;
-            commit_entry.branch.raise = 'd0;
+            commit_entry.fin = 'd0;
+            commit_entry.branch.miss = 'd0;
             commit_entry.branch.current_pc = pc;
         end else begin
-            commit_entry.wb.fin = instr[31] & instr[30] & ~instr[27];
+            commit_entry.fin = instr[31] & instr[30] & ~instr[27];
             commit_entry.wb.dest_logic = (
                 instr[31:30] == 'b00 && instr[27:26] == 'b11
             ) ? instr[7:0] : instr[23:16];
@@ -171,33 +174,51 @@ endmodule
 module InstructionDecode (
     input wire clock,
     input wire flash,
-    input wire stall,
+    // input wire stall,
 
-    input w32 instr,
-    input w16 pc,
-    input wire approx,
+    // input w32 instr,
+    // input w16 pc,
+    // input wire approx,
+    Message.receiver if_result,
 
-    input CompleteInfo complete,
-    input CommitInfo commit,
+    // input CompleteInfo complete,
+    // input CommitInfo commit,
+    Message.receiver complete_info,
+    Message.receiver commit_info,
 
-    IPushCommit.master push_commit,
+    // IPushCommit.master push_commit,
+    Message.sender commit_entry,
+    input w8 commit_id,
 
-    output wire alu_en,
-    output AluInstr alu_instr,
-    output wire fpu_en,
-    output FpuInstr fpu_instr,
-    output wire bu_en,
-    output BranchInstr bu_instr,
-    output wire mem_en,
-    output MemoryInstr mem_instr,
-    output wire uart_en,
-    output UartInstr uart_instr
+    // output wire alu_en,
+    // output AluInstr alu_instr,
+    // output wire fpu_en,
+    // output FpuInstr fpu_instr,
+    // output wire bu_en,
+    // output BranchInstr bu_instr,
+    // output wire mem_en,
+    // output MemoryInstr mem_instr,
+    // output wire uart_en,
+    // output UartInstr uart_instr
+    Message.sender alu_instr,
+    Message.sender fpu_instr,
+    Message.sender branch_instr,
+    Message.sender memory_instr,
+    Message.sender uart_instr
 );
+    assign if_result.reject = (
+        alu_instr.send_failed() | fpu_instr.send_failed() |
+        branch_instr.send_failed() | memory_instr.send_failed() |
+        uart_instr.send_failed() | commit_entry.send_failed()
+    );
+
     // 命令からレジスタファイルに送るdest, srcを抽出
-    wire dest_en = instr[31] & stall;
+    w32 instr;
+    assign instr = if_result.msg.instr;
+    wire dest_en = if_result.en & instr[31] & ~if_result.reject;
     w8 dest_logic;
     assign dest_logic = (
-        instr[31:30] == 'b00 && instr[27:26] == 'b11
+        instr[31:30] == 'b00 && instr[27:26] == 'b11  // mov命令
     ) ? instr[7:0] : instr[23:16];
     w8 src1;
     assign src1 = instr[15:8];
@@ -209,7 +230,7 @@ module InstructionDecode (
     w64 dest_phys;
     RegisterFile rf (
         .clock, .flash, .dest_en, .dest_logic, .src1, .src2,
-        .complete, .commit, .read1, .read2, .dest_phys
+        .complete_info, .commit_info, .read1, .read2, .dest_phys
     );
 
     // パイプライン分割
@@ -217,44 +238,73 @@ module InstructionDecode (
     r16 pc_ppl;
     reg approx_ppl;
     always_ff @(posedge clock) begin
-        instr_ppl <= instr;
-        pc_ppl <= pc;
-        approx_ppl <= approx;
+        if (~if_result.reject) begin
+            instr_ppl <= instr;
+            pc_ppl <= if_result.msg.pc;
+            approx_ppl <= if_result.msg.approx;
+        end
     end
 
     // --- 1クロックの壁 ---
 
-    Source processed1, processed2;
+    Source processed1_orig, processed2_orig;
     process_read_data process_read_data (
-        .instr(instr_ppl), .read1, .read2, .processed1, .processed2
+        .instr(instr_ppl), .read1, .read2,
+        .processed1(processed1_orig), .processed2(processed2_orig)
     );
+    // リジェクト時の再送処理
+    Source processed1_latch, processed2_latch;
+    Source processed1, processed2;
+    reg reject_1clock_behind;
+    assign processed1 = (reject_1clock_behind) ? processed1_latch : processed1_orig;
+    assign processed2 = (reject_1clock_behind) ? processed2_latch : processed2_orig;
+    always_ff @(posedge clock) begin
+        reject_1clock_behind <= if_result.reject;
+        processed1_latch <= processed1;
+        processed2_latch <= processed2;
+    end
+
 
     // 各リザベーションステーションに向けてデータを詰める
+    wire alu_en;
     decode_alu_instr decode_alu_instr (
-        .flash, .instr(instr_ppl), .dest_phys, .commit_id(push_commit.commit_id),
-        .src1(processed1), .src2(processed2), .alu_en, .alu_instr
+        .flash, .instr(instr_ppl), .dest_phys, .commit_id,
+        .src1(processed1), .src2(processed2), .alu_en, .alu_instr(alu_instr.msg)
     );
+    assign alu_instr.en = alu_en & ~commit_entry.reject & if_result.en;
+
+    wire fpu_en;
     decode_fpu_instr decode_fpu_instr (
-        .flash, .instr(instr_ppl), .dest_phys, .commit_id(push_commit.commit_id),
-        .src1(processed1), .src2(processed2), .fpu_en, .fpu_instr
+        .flash, .instr(instr_ppl), .dest_phys, .commit_id,
+        .src1(processed1), .src2(processed2), .fpu_en, .fpu_instr(fpu_instr.msg)
     );
+    assign fpu_instr.en = fpu_en & ~commit_entry.reject & if_result.en;
+
+    wire bu_en;
     decode_bu_instr decode_bu_instr (
         .flash, .instr(instr_ppl), .approx(approx_ppl), .pc(pc_ppl),
-        .commit_id(push_commit.commit_id), .src1(processed1), .src2(processed2),
+        .commit_id, .src1(processed1), .src2(processed2),
         .bu_en, .bu_instr
     );
+    assign branch_instr.en = bu_en & ~commit_entry.reject & if_result.en;
+
+    wire mem_en;
     decode_mem_instr decode_mem_instr (
-        .flash, .instr(instr_ppl), .dest_phys, .commit_id(push_commit.commit_id),
+        .flash, .instr(instr_ppl), .dest_phys, .commit_id,
         .src1(processed1), .src2(processed2), .mem_en, .mem_instr
     );
+    assign memory_instr.en = mem_en & ~commit_entry.reject & if_result.en;
+
+    wire uart_en;
     decode_uart_instr decode_uart_instr (
-        .flash, .instr(instr_ppl), .dest_phys,
-        .src2(processed2), .uart_en, .uart_instr
+        .flash, .instr(instr_ppl), .dest_phys, .src2(processed2),
+        .commit_id, .uart_en, .uart_instr(uart_instr.msg)
     );
+    assign uart_instr.en = uart_en & ~commit_entry.reject & if_result.en;
 
     // コミットキューにデータを渡す
-    assign push_commit.en = (instr_ppl[31:27] == 'b11110) ?  0 : ~flash;
+    assign commit_entry.en = if_result.en & ~flash;
     create_commit create_commit(
-        .instr(instr_ppl), .pc(pc_ppl), .commit_entry(push_commit.commit_entry)
+        .instr(instr_ppl), .pc(pc_ppl), .commit_entry(commit_entry.msg)
     );
 endmodule

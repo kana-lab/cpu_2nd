@@ -43,11 +43,11 @@ module PartialResultQueueInst #(
 ) (
     input wire clock,
     input w8 w_addr,
-    input wire [49:0] w_data,
+    input wire [48:0] w_data,
     input w8 r_addr,
-    output wire [49:0] r_data
+    output wire [48:0] r_data
 );
-    (* ram_style = "block" *)reg [49:0] bram[Q_SIZE - 1:0];
+    (* ram_style = "block" *)reg [48:0] bram[Q_SIZE - 1:0];
 
     always_ff @(posedge clock) begin
         bram[w_addr] <= w_data;
@@ -61,11 +61,11 @@ module PartialResultQueue #(
 ) (
     input wire clock,
     input w8 w_addr,
-    input wire [49:0] w_data,
+    input wire [48:0] w_data,
     input w8 r_addr,
-    output reg [49:0] r_data
+    output reg [48:0] r_data
 );
-    wire [49:0] read_tmp;
+    wire [48:0] read_tmp;
     PartialResultQueueInst #(.Q_SIZE(Q_SIZE)) inst (
         .clock, .w_addr, .w_data, .r_data(read_tmp)
     );
@@ -80,20 +80,21 @@ module ResultQueue #(
 ) (
     input wire clock,
     input wire flash,
-    input wire stall,
+    // input wire stall,
 
-    input Result r_vec[NUM_Q - 1:0],
-    output wire q_full[NUM_Q - 1:0],
+    // input Result r_vec[NUM_Q - 1:0],
+    // output wire q_full[NUM_Q - 1:0],
+    Message.receive r_vec[NUM_Q - 1:0],
 
-    output Result complete
+    Message.sender complete_info
 );
     localparam N = NUM_Q;
 
     // リザベーションステーション毎にキューを用意
     w8 pq_w_addr[N - 1:0];
-    wire [49:0] pq_w_data[N - 1:0];
+    wire [48:0] pq_w_data[N - 1:0];
     w8 pq_r_addr[N - 1:0];
-    wire [49:0] pq_r_data[N - 1:0];
+    wire [48:0] pq_r_data[N - 1:0];
     for(genvar i = 0; i < N; i++) begin
         PartialResultQueue q (
             .clock, .w_addr(pq_w_addr[i]),
@@ -105,50 +106,81 @@ module ResultQueue #(
     r8 q_end[N - 1:0];
 
     // どのキューからpopするかを決定するpriority encoderの宣言
-    wire [N - 1:0] ready;
+    wire [N - 1:0] ready_q;
+    wire [N - 1:0] ready_input;
+    w8 offset_q, offset_input;
+    wire empty_q, empry_input;
     for (genvar i = 0; i < N; i++) begin
-        assign ready[i] = (q_end[i] != q_begin[i]) ? 'd1 : 'd0;
-        assign q_full[i] = ((q_end[i] + 'd1) % 'd32) == q_begin[i] ? 'd1 : 'd0;
+        assign ready_q[i] = (q_end[i] != q_begin[i]) ? 'd1 : 'd0;
+        // todo: fullであってもそのクロックでpopされる場合はOK
+        assign r_vec[i].reject = ((q_end[i] + 'd1) % 'd32) == q_begin[i] ? 'd1 : 'd0;
+        assign ready_input[i] = r_vec[i].en;
     end
-    w8 offset;
-    wire empty;
-    PriorityEncoder #(N) priority_encoder (
-        .b(ready), .lsb(offset), .zero(empty)
+    PriorityEncoder #(N) q_priority (
+        .b(ready_q), .lsb(offset_q), .zero(empty_q)
+    );
+    PriorityEncoder #(N) input_priority (
+        .b(ready_input), .lsb(offset_input), .zero(empty_input)
     );
 
     // キューのインデックス管理
-    reg empty_ppl;
+    Result fall_through;
+    reg fall_through_exist;
+    reg empty_q_ppl;
+    r8 offset_q_ppl;
     always_ff @(posedge clock) begin
+        offset_q_ppl <= offset_q;
+
         if (flash) begin
             for (int i = 0; i < N; i++) begin
                 q_begin[i] <= 0;
                 q_end[i] <= 0;
-                empty_ppl <= 0;
-            end
-        end else begin
-            for (int i = 0; i < N; i++) begin
-                if (r_vec[i].en)
-                    q_end[i] <= (q_end[i] + 'd1) % 'd32;
             end
 
-            empty_ppl <= empty;
-            if (~empty)
-                q_begin[offset] <= (q_begin[offset] + 'd1) % 'd32;
+            fall_through_exist <= 0;
+            empty_q_ppl <= 'd1;
+        end else begin
+            empty_q_ppl <= empty_q;
+
+            if (~complete_info.reject) begin
+                if (empty_q) begin
+                    for (int i = 0; i < N; i++) begin
+                        if (r_vec[i].en && i != offset_input)
+                            q_end[i] <= (q_end[i] + 'd1) % 'd32;
+                    end
+
+                    fall_through_exist <= ~empty_input;
+                    fall_through <= r_vec[offset_input].msg;
+                end else begin
+                    for (int i = 0; i < N; i++) begin
+                        if (r_vec[i].en & ~r_vec[i].reject)
+                            q_end[i] <= (q_end[i] + 'd1) % 'd32;
+                    end
+
+                    fall_through_exist <= 0;
+                end
+
+                if (~empty_q_ppl) begin
+                    if (~fall_through_exist)
+                        q_begin[offset_q_ppl] <= q_begin[offset_q_ppl] + 'd1;
+                end
+            end else begin
+                for (int i = 0; i < N; i++) begin
+                    if (r_vec[i].en & ~r_vec[i].reject)
+                        q_end[i] <= (q_end[i] + 'd1) % 'd32;
+                end
+            end
         end
     end
 
     // キューの操作に必要なデータを送信
     for (genvar i = 0; i < N; i++) begin
         assign pq_w_addr[i] = q_end[i];
-        assign pq_w_data[i] = r_vec[i];
-        assign pq_r_addr[i] = q_begin[offset];
+        assign pq_w_data[i] = r_vec[i].msg;
+        assign pq_r_addr[i] = q_begin[offset_q];
     end
 
     // キューから読みだしたデータをcompleteに格納
-    Result read;
-    assign read = Result'(pq_r_data[offset]);
-    assign complete.commit_id = read.commit_id;
-    assign complete.kind = read.kind;
-    assign complete.content = read.content;
-    assign complete.en = ~(empty_ppl | stall | flash);
+    assign complete_info.msg = (fall_through_exist) ? fall_through : Result'(pq_r_data[offset_q_ppl]);
+    assign complete_info.en = ~flash & ~complete_info.reject & (fall_through_exist | ~empty_q_ppl);
 endmodule

@@ -69,10 +69,13 @@ module DummyCore2 (
     assign br.en = 0;
     wire stall = 0;
     w32 instr;
+    Message #(IFResult) if_result();
     InstructionFetch instr_fetch (
         .clock, .reset, .stall, .branch_result(br), .instr_mem,
-        .instr_out(instr), .pc_out(), .approx_out()
+        // .instr_out(instr), .pc_out(), .approx_out()
+        .if_result
     );
+    assign instr = if_result.msg.instr;
 
     r32 m[100:0];
     reg phase, recv_valid;

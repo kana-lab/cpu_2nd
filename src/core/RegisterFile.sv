@@ -22,20 +22,23 @@ module RegisterFile (
     input w8 src1,
     input w8 src2,
 
-    input CompleteInfo complete,
-    input CommitInfo commit,
+    Message.receiver complete_info,
+    Message.receiver commit_info,
 
     output Source read1,
     output Source read2,
     output r64 dest_phys
 );
+    assign complete_info.reject = 'd0;
+    assign commit_info.reject = 'd0;
+    
     Register register[255:0];
     r64 tag_generator;
 
     wire complete_established = (
-        complete.en &&
-        ~register[complete.dest_logic].phys_valid &&
-        register[complete.dest_logic].phys.tag == complete.dest_phys
+        complete_info.en &&
+        ~register[complete_info.msg.dest_logic].phys_valid &&
+        register[complete_info.msg.dest_logic].phys.tag == complete_info.msg.dest_phys
     ) ? 'd1 : 'd0;
 
     always_ff @(posedge clock) begin
@@ -51,22 +54,22 @@ module RegisterFile (
                 register[dest_logic].phys.tag <= dest_phys;
             end
 
-            if (commit.en)
-                register[commit.dest_logic].arch_data <= commit.data;
+            if (commit_info.en)
+                register[commit_info.msg.dest_logic].arch_data <= commit_info.msg.data;
 
             if (
                 complete_established &&
                 // 入力とcomleteが被った場合入力優先
-                ~(dest_en && dest_logic == complete.dest_logic)
+                ~(dest_en && dest_logic == complete_info.msg.dest_logic)
             ) begin
-                register[complete.dest_logic].phys_valid <= 'd1;
-                register[complete.dest_logic].phys.data <= complete.data;
+                register[complete_info.msg.dest_logic].phys_valid <= 'd1;
+                register[complete_info.msg.dest_logic].phys.data <= complete_info.msg.data;
             end
 
             // src1の読み出し
-            if (complete_established && src1 == complete.dest_logic) begin
+            if (complete_established && src1 == complete_info.msg.dest_logic) begin
                 read1.valid <= 'd1;
-                read1.content.data <= complete.data;
+                read1.content.data <= complete_info.msg.data;
             end else begin
                 if (register[src1].place) begin
                     read1.valid <= register[src1].phys_valid;
@@ -82,9 +85,9 @@ module RegisterFile (
             end
             
             // src2の読み出し
-            if (complete_established && src2 == complete.dest_logic) begin
+            if (complete_established && src2 == complete_info.msg.dest_logic) begin
                 read2.valid <= 'd1;
-                read2.content.data <= complete.data;
+                read2.content.data <= complete_info.msg.data;
             end else begin
                 if (register[src2].place) begin
                     read2.valid <= register[src2].phys_valid;
