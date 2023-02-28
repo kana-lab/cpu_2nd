@@ -3,26 +3,51 @@
 
 `include "../typedefs.svh"
 
-typedef struct {
+interface Message #(
+    type message_t = logic [0:0]
+);
     logic en;
+    logic reject;
+    message_t msg;
+
+    modport sender (
+        input reject,
+        output en, msg
+    );
+
+    modport receiver (
+        input en, msg,
+        output reject
+    );
+
+    function send_failed ();
+        return this.en & this.rejected;
+    endfunction
+endinterface
+
+typedef struct {
+    w32 instr;
+    w16 pc;
+    logic approx;
+} IFResult;
+
+typedef struct packed {
+    logic miss;
+    logic taken;
+    u16 current_pc;
+    u16 jump_addr;
+} BranchResult;
+
+typedef struct {
     w8 dest_logic;
     w64 dest_phys;
     w32 data;
 } CompleteInfo;
 
 typedef struct {
-    logic en;
     w8 dest_logic;
     w32 data;
 } CommitInfo;
-
-typedef struct {
-    logic en;
-    logic miss;
-    logic taken;
-    w32 current_pc;
-    w32 jump_addr;
-} BranchResult;
 
 typedef struct {
     logic valid;
@@ -77,6 +102,7 @@ typedef struct {
 } MemoryInstr;
 
 typedef struct {
+    u8 commit_id;
     logic sr;  // send/recv;
     union {
         Source send;
@@ -89,52 +115,46 @@ typedef struct {
 
 typedef struct {
     logic kind;  // 0: wb, 1: branch
+    logic notify_only;  // usend, sw/swnの場合notifyのみになる
+    logic fin;  // fin == 1であってもevent == 'b00になるまで保持すべき
 
     union {
         struct {
-            logic fin;  // fin == 1であってもevent == 'b00になるまで保持すべき
             logic [1:0] notify;  // notify[0]: uart, notify[1]: sw
             w8 dest_logic;
             w32 data;
         } wb;
 
-        struct {
-            logic fin;
-            logic raise;
-            logic taken;
-            u16 new_pc;
-            u16 current_pc;
-        } branch;
+        BranchResult branch;
     } content;
 } CommitEntry;
 
-interface IPushCommit;
-    wire en;
-    w8 commit_id;
-    CommitEntry commit_entry;
+// interface IPushCommit;
+//     wire en;
+//     w8 commit_id;
+//     CommitEntry commit_entry;
 
-    modport master (
-        input commit_id,
-        output en, commit_entry
-    );
+//     modport master (
+//         input commit_id,
+//         output en, commit_entry
+//     );
 
-    modport slave (
-        input en, commit_entry,
-        output commit_id
-    );
-endinterface
+//     modport slave (
+//         input en, commit_entry,
+//         output commit_id
+//     );
+// endinterface
 
 typedef struct packed {
     u8 commit_id;
-    logic en;
-    logic kind;  // 0: branch, 1: wb
+    logic kind;  // 0: wb, 1: branch
     union packed {
         struct packed {
             u8 dest_phys;
             u32 data;
         } wb;
         struct packed {
-            logic raise;
+            logic miss;
             logic taken;
             u16 new_pc;
             logic [21:0] buf_;
