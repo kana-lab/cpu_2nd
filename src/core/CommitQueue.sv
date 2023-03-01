@@ -44,7 +44,7 @@ module CommitQueue #(
     Q_SIZE = 256
 ) (
     input wire clock,
-    input wire reset,
+    input wire flash,
 
     Message.receiver complete_info,
     Message.receiver commit_entry,
@@ -70,7 +70,7 @@ module CommitQueue #(
     assign head = entry[q_begin];
 
     always_ff @(posedge clock) begin
-        if (reset) begin
+        if (flash) begin
             q_begin <= 0;
             q_end <= 0;
         end else begin
@@ -91,6 +91,7 @@ module CommitQueue #(
                 end
             end
 
+            // TODO: q_begin == q_endの場合が考慮されていないのでは？
             if (head.kind) begin
                 if (head.fin)
                     q_begin <= (q_begin + 'd1) % Q_SIZE;
@@ -108,6 +109,7 @@ module CommitQueue #(
         end
     end
 
+    // TODO: q_end == q_beginの場合の考慮
     always_comb begin
         commit_entry.reject = ((q_end + 'd1) % Q_SIZE == q_begin) ? 'd1 : 'd0;
         complete_info.reject = 0;

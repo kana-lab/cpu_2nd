@@ -325,9 +325,11 @@ module MemRs #(
 ) (
     input wire clock,
     input wire flash,
+    ICache.master cache,
     Message.receiver mem_instr,
     Message.receiver complete_info,
+    Message.receiver notify,
     Message.sender mem_result
 );
-    
+
 endmodule

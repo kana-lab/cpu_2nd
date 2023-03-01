@@ -174,32 +174,13 @@ endmodule
 module InstructionDecode (
     input wire clock,
     input wire flash,
-    // input wire stall,
 
-    // input w32 instr,
-    // input w16 pc,
-    // input wire approx,
     Message.receiver if_result,
-
-    // input CompleteInfo complete,
-    // input CommitInfo commit,
     Message.receiver complete_info,
     Message.receiver commit_info,
-
-    // IPushCommit.master push_commit,
     Message.sender commit_entry,
     input w8 commit_id,
-
-    // output wire alu_en,
-    // output AluInstr alu_instr,
-    // output wire fpu_en,
-    // output FpuInstr fpu_instr,
-    // output wire bu_en,
-    // output BranchInstr bu_instr,
-    // output wire mem_en,
-    // output MemoryInstr mem_instr,
-    // output wire uart_en,
-    // output UartInstr uart_instr
+    
     Message.sender alu_instr,
     Message.sender fpu_instr,
     Message.sender branch_instr,
