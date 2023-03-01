@@ -252,7 +252,7 @@ module InstructionDecode (
         .instr(instr_ppl), .read1, .read2,
         .processed1(processed1_orig), .processed2(processed2_orig)
     );
-    // リジェクト時の再送処理
+    // リジェクト時の再送処理 (フォールスルーに注意)
     Source processed1_latch, processed2_latch;
     Source processed1, processed2;
     reg reject_1clock_behind;
@@ -260,8 +260,28 @@ module InstructionDecode (
     assign processed2 = (reject_1clock_behind) ? processed2_latch : processed2_orig;
     always_ff @(posedge clock) begin
         reject_1clock_behind <= if_result.reject;
-        processed1_latch <= processed1;
-        processed2_latch <= processed2;
+
+        if (
+            complete_info.en && ~complete_info.msg.kind && ~processed1.valid &&
+            complete_info.msg.content.wb.dest_phys == processed1.content.tag
+        ) begin
+            processed1_latch.valid <= 'd1;
+            processed1_latch.content.data <= complete_info.msg.content.wb.data;
+        end else begin
+            processed1_latch <= processed1;
+        end
+        // processed1_latch <= processed1;
+
+        if (
+            compelte_info.en && ~complete_info.msg.kind && ~processed2.valid &&
+            complete_info.msg.content.wb.dest_phys == processed2.content.tag
+        ) begin
+            processed2_latch.valid <= 'd1;
+            processed2_latch.content.data <= complete_info.msg.content.wb.data;
+        end else begin
+            processed2_latch <= processed2;
+        end
+        // processed2_latch <= processed2;
     end
 
 

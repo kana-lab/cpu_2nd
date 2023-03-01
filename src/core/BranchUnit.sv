@@ -1,3 +1,7 @@
+`include "../typedefs.svh"
+`include "bus.svh"
+
+
 module fless(
     input logic [31:0] x1,
     input logic [31:0] x2,
@@ -29,17 +33,17 @@ module fless(
 endmodule
 
 module BranchUnit (
-    input wire en,
-    input wire [2:0] funct,
-    input wire [31:0] read1,
-    input wire [31:0] read2,
-
-    output wire taken
+    input BranchInstr branch_instr,
+    output Result result
 );
-    wire [31:0] flt;
-    fless fless(read1, read2, flt);
-    wire eq = (read1 == read2) ? 1'b1 : 1'b0;
+    w32 read1, read2;
+    assign read1 = branch_instr.src1.content.data;
+    assign read2 = branch_instr.src2.content.data;
 
+    w32 flt;
+    fless fless(.x1(read1), .x2(read2), .y(flt));
+    wire eq = (read1 == read2) ? 'b1 : 'b0;
+    
     wire ibeq = (funct == 3'd0) ? eq : 1'b0;
     wire ibne = (funct == 3'd1) ? (read1 != read2 ? 1'b1 : 1'b0) : 1'b0;
     wire iblt = (funct == 3'd2) ? (read1 < read2 ? 1'b1 : 1'b0) : 1'b0;
@@ -48,6 +52,11 @@ module BranchUnit (
     wire fble = (funct == 3'd5) ? (flt[0] | eq) : 1'b0;
     wire fbps = (funct == 3'd6) ? ~read2[31] : 1'b0;
     wire fbng = (funct == 3'd7) ? read2[31] : 1'b0;
+    wire taken = (ibeq | ibne | iblt | ible | fblt | fble | fbps | fbng);
 
-    assign taken = (ibeq | ibne | iblt | ible | fblt | fble | fbps | fbng) & en;
+    assign result.comit_id = branch_instr.commit_id;
+    assign result.kind = 'b1;
+    assign result.content.branch.taken = taken | branch_instr.jr;
+    assign result.content.branch.miss = (taken ^ branch_instr.approx) | branch_instr.jr;
+    assign result.content.branch.new_pc = (branch_instr.jr) ? read2 : branch_instr.new_pc;
 endmodule

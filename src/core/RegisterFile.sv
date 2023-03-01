@@ -31,14 +31,14 @@ module RegisterFile (
 );
     assign complete_info.reject = 'd0;
     assign commit_info.reject = 'd0;
-    
+
     Register register[255:0];
     r64 tag_generator;
 
     wire complete_established = (
-        complete_info.en &&
-        ~register[complete_info.msg.dest_logic].phys_valid &&
-        register[complete_info.msg.dest_logic].phys.tag == complete_info.msg.dest_phys
+        complete_info.en && ~complete_info.msg.kind &&
+        ~register[complete_info.msg.content.wb.dest_logic].phys_valid &&
+        register[complete_info.msg.content.wb.dest_logic].phys.tag == complete_info.msg.content.wb.dest_phys
     ) ? 'd1 : 'd0;
 
     always_ff @(posedge clock) begin
@@ -60,16 +60,16 @@ module RegisterFile (
             if (
                 complete_established &&
                 // 入力とcomleteが被った場合入力優先
-                ~(dest_en && dest_logic == complete_info.msg.dest_logic)
+                ~(dest_en && dest_logic == complete_info.msg.content.wb.dest_logic)
             ) begin
-                register[complete_info.msg.dest_logic].phys_valid <= 'd1;
-                register[complete_info.msg.dest_logic].phys.data <= complete_info.msg.data;
+                register[complete_info.msg.content.wb.dest_logic].phys_valid <= 'd1;
+                register[complete_info.msg.content.wb.dest_logic].phys.data <= complete_info.msg.content.wb.data;
             end
 
             // src1の読み出し
-            if (complete_established && src1 == complete_info.msg.dest_logic) begin
+            if (complete_established && src1 == complete_info.msg.content.wb.dest_logic) begin
                 read1.valid <= 'd1;
-                read1.content.data <= complete_info.msg.data;
+                read1.content.data <= complete_info.msg.content.wb.data;
             end else begin
                 if (register[src1].place) begin
                     read1.valid <= register[src1].phys_valid;
@@ -85,9 +85,9 @@ module RegisterFile (
             end
             
             // src2の読み出し
-            if (complete_established && src2 == complete_info.msg.dest_logic) begin
+            if (complete_established && src2 == complete_info.msg.content.wb.dest_logic) begin
                 read2.valid <= 'd1;
-                read2.content.data <= complete_info.msg.data;
+                read2.content.data <= complete_info.msg.content.wb.data;
             end else begin
                 if (register[src2].place) begin
                     read2.valid <= register[src2].phys_valid;

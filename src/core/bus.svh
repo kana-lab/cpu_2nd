@@ -103,7 +103,7 @@ typedef struct {
 
 typedef struct {
     u8 commit_id;
-    logic sr;  // send/recv;
+    logic sr;  // 1: send, 0: recv;
     union {
         Source send;
         struct {
@@ -151,6 +151,7 @@ typedef struct packed {
     union packed {
         struct packed {
             u8 dest_phys;
+            u8 dest_logic;
             u32 data;
         } wb;
         struct packed {
