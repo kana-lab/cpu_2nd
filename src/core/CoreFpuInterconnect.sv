@@ -51,7 +51,7 @@ module CoreFpuInterconnect (
     wire idle;
     w32 y;
     fpu fpu_i (
-        .clk(clock), .bram_clock(clock), .funct(fpu_instr.funct5),
+        .clk(clock), .bram_clk(clock), .funct(fpu_instr.funct5),
         .x1(fpu_instr.src1.content.data), .x2(fpu_instr.src2.content.data),
         .y, .en, .valid(), .idle
     );

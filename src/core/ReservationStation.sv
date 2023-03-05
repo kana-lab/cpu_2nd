@@ -1,4 +1,4 @@
-`include "../typedef.svh"
+`include "../typedefs.svh"
 `include "bus.svh"
 
 module AluRS #(
@@ -139,18 +139,18 @@ module BuRS #(
                 empty[ready_idx] <= 'd1;
             
             // エントリの追加にかかる処理
-            if (bu_instr.en & ~full) begin
+            if (branch_instr.en & ~full) begin
                 // フォールスルーはレジスタファイルの方で既に実施済み
-                entry[empty_idx] <= bu_instr.msg;
+                entry[empty_idx] <= branch_instr.msg;
                 empty[empty_idx] <= 0;
             end
         end
     end
 
     // BUを宣言
-    BranchUnit bu (.bu_instr(entry[ready_idx]), .result(bu_result.msg));
+    BranchUnit bu (.branch_instr(entry[ready_idx]), .result(bu_result.msg));
     assign bu_result.en = ~not_ready & ~flash;
-    assign bu_instr.reject = full;
+    assign branch_instr.reject = full;
 endmodule
 
 module UartRS #(
@@ -337,11 +337,11 @@ module MemoryIntegrator (
     assign mem_instr = (en) ? mem_instr_orig.msg : mem_instr_saved;
 
     Result r;
-    assign r.commit_id = mem_instr.msg.commit_id;
+    assign r.commit_id = mem_instr.commit_id;
     assign r.kind = 0;
     assign r.content.wb.dest_phys = mem_instr.r.load.dest_phys;
     assign r.content.wb.dest_logic = mem_instr.r.load.dest_logic;
-    assign r.conetne.wb.data = cache.rd;
+    assign r.content.wb.data = cache.rd;
 
     reg stall_1clock_behind;
     always_ff @(posedge clock)
@@ -353,23 +353,25 @@ module MemoryIntegrator (
     // 100: waiting ResultQueue to be ready
     reg [2:0] state;
     Result r_saved;
+    reg ls_saved;
     always_ff @(posedge clock) begin
         if (flash) begin
             state <= 'b001;
         end else begin
             if (state[0]) begin
-                if (mem_instr.en)
+                if (en)
                     state <= 'b010;
             end
 
             if (state[1]) begin
                 if (finished) begin
                     r_saved <= r;
+                    ls_saved <= mem_instr.ls;
                     
                     // メモリ書き込みのときはキューを待つ必要は無いが、簡単のため待つことにする
                     if (mem_result.reject) begin
                         state <= 'b100;
-                    end else if (~mem_instr.en) begin
+                    end else if (~en) begin
                         state <= 'b001;
                     end
                 end
@@ -377,7 +379,7 @@ module MemoryIntegrator (
 
             if (state[2]) begin
                 if (~mem_result.reject) begin
-                    state <= (mem_instr.en) ? 'b010 : 'b001;
+                    state <= (en) ? 'b010 : 'b001;
                 end
             end
         end
@@ -393,8 +395,9 @@ module MemoryIntegrator (
     );
     assign cache.wd = mem_instr.r.store.content.data;
 
-    assign mem_result.en = (finished | state[2]) & mem_result.msg.ls;
     assign mem_result.msg = (finished) ? r : r_saved;
+    wire ls = (finished) ? mem_instr.ls : ls_saved;
+    assign mem_result.en = (finished | state[2]) & ls;
 endmodule
 
 // とりあえずlwの追い越しはないものとする
@@ -414,13 +417,13 @@ module MemRS #(
 
     MemoryInstr head;
     assign head = entry[q_begin];
-    wire full = ((q_end + 'd1) % N_LINE == q_start) ? 'd1 : 'd0;
+    wire full = ((q_end + 'd1) % N_LINE == q_begin) ? 'd1 : 'd0;
     wire empty = (q_begin == q_end) ? 'd1 : 'd0;
 
     Message #(MemoryInstr) to_cache();
     MemoryIntegrator mem_i (
         .clock, .flash, .cache,
-        .mem_instr(to_cache.receiver), .mem_result
+        .mem_instr_orig(to_cache.receiver), .mem_result
     );
 
     assign to_cache.en = (
@@ -453,7 +456,7 @@ module MemRS #(
                         ~entry[i].addr.valid &&
                         entry[i].addr.content.tag == complete_info.msg.content.wb.dest_phys
                     ) begin
-                        entry[i].addr.store.valid <= 'd1;
+                        entry[i].addr.valid <= 'd1;
                         entry[i].addr.content.data <= complete_info.msg.content.wb.data;
                     end
                 end

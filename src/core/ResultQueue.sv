@@ -53,7 +53,7 @@ module ResultQueue #(
 
     // input Result r_vec[NUM_Q - 1:0],
     // output wire q_full[NUM_Q - 1:0],
-    Message.receive r_vec[NUM_Q - 1:0],
+    Message.receiver r_vec[NUM_Q - 1:0],
 
     Message.sender complete_info
 );
@@ -77,6 +77,8 @@ module ResultQueue #(
     // どのキューからpopするかを決定するpriority encoderの宣言
     wire [N - 1:0] ready_q;
     wire [N - 1:0] ready_input;
+    wire [N - 1:0] will_be_written;
+    Result [N - 1:0] msg_vec;
     w8 offset_q, offset_input;
     wire empty_q, empry_input;
     for (genvar i = 0; i < N; i++) begin
@@ -84,6 +86,8 @@ module ResultQueue #(
         // todo: fullであってもそのクロックでpopされる場合はOK
         assign r_vec[i].reject = ((q_end[i] + 'd1) % 'd32) == q_begin[i] ? 'd1 : 'd0;
         assign ready_input[i] = r_vec[i].en;
+        assign will_be_written[i] = r_vec[i].en & ~r_vec[i].reject;
+        assign msg_vec[i] = r_vec[i].msg;
     end
     PriorityEncoder #(N) q_priority (
         .b(ready_q), .lsb(offset_q), .zero(empty_q)
@@ -91,6 +95,11 @@ module ResultQueue #(
     PriorityEncoder #(N) input_priority (
         .b(ready_input), .lsb(offset_input), .zero(empty_input)
     );
+    // Message #(Result) selected_fall_through_data;
+    // always_comb begin
+    //     selected_fall_through_data = r_vec[offset_input];
+    // end
+    // assign selected_fall_through_data = r_vec[offset_input];
 
     // キューのインデックス管理
     Result fall_through;
@@ -114,15 +123,18 @@ module ResultQueue #(
             if (~complete_info.reject) begin
                 if (empty_q) begin
                     for (int i = 0; i < N; i++) begin
-                        if (r_vec[i].en && i != offset_input)
+                        // if (r_vec[i].en && i != offset_input)
+                        if (ready_input[i] & i != offset_input)
                             q_end[i] <= (q_end[i] + 'd1) % 'd32;
                     end
 
                     fall_through_exist <= ~empty_input;
-                    fall_through <= r_vec[offset_input].msg;
+                    // fall_through <= r_vec[offset_input].msg;
+                    fall_through <= msg_vec[offset_input];
                 end else begin
                     for (int i = 0; i < N; i++) begin
-                        if (r_vec[i].en & ~r_vec[i].reject)
+                        // if (r_vec[i].en & ~r_vec[i].reject)
+                        if (will_be_written[i])
                             q_end[i] <= (q_end[i] + 'd1) % 'd32;
                     end
 
@@ -135,7 +147,8 @@ module ResultQueue #(
                 end
             end else begin
                 for (int i = 0; i < N; i++) begin
-                    if (r_vec[i].en & ~r_vec[i].reject)
+                    // if (r_vec[i].en & ~r_vec[i].reject)
+                    if (will_be_written[i])
                         q_end[i] <= (q_end[i] + 'd1) % 'd32;
                 end
             end

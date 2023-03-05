@@ -85,7 +85,7 @@ module CommitQueue #(
                 if (complete_info.msg.kind) begin
                     entry[complete_info.msg.commit_id].content.branch.miss <= complete_info.msg.content.branch.miss;
                     entry[complete_info.msg.commit_id].content.branch.taken <= complete_info.msg.content.branch.taken;
-                    entry[complete_info.msg.commit_id].content.branch.new_pc <= complete_info.msg.content.branch.new_pc;
+                    entry[complete_info.msg.commit_id].content.branch.jump_addr <= complete_info.msg.content.branch.new_pc;
                 end else begin
                     entry[complete_info.msg.commit_id].content.wb.data <= complete_info.msg.content.wb.data;
                 end
@@ -114,7 +114,7 @@ module CommitQueue #(
         commit_entry.reject = ((q_end + 'd1) % Q_SIZE == q_begin) ? 'd1 : 'd0;
         complete_info.reject = 0;
 
-        commid_id = q_end;
+        commit_id = q_end;
 
         branch_result.en = head.fin & head.kind;
         branch_result.msg = head.content.branch;

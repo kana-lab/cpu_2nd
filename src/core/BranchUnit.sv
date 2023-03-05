@@ -39,6 +39,7 @@ module BranchUnit (
     w32 read1, read2;
     assign read1 = branch_instr.src1.content.data;
     assign read2 = branch_instr.src2.content.data;
+    wire [2:0] funct = branch_instr.funct3;
 
     w32 flt;
     fless fless(.x1(read1), .x2(read2), .y(flt));
@@ -54,7 +55,7 @@ module BranchUnit (
     wire fbng = (funct == 3'd7) ? read2[31] : 1'b0;
     wire taken = (ibeq | ibne | iblt | ible | fblt | fble | fbps | fbng);
 
-    assign result.comit_id = branch_instr.commit_id;
+    assign result.commit_id = branch_instr.commit_id;
     assign result.kind = 'b1;
     assign result.content.branch.taken = taken | branch_instr.jr;
     assign result.content.branch.miss = (taken ^ branch_instr.approx) | branch_instr.jr;

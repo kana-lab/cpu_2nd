@@ -180,14 +180,14 @@ module EX_MEMStage (
 endmodule
 
 
-module Core (
-    input wire clock,
-    input wire reset,
+// module Core (
+//     input wire clock,
+//     input wire reset,
 
-    IInstr.master instr_mem,
-    ICache.master cache,
-    ISendRequest.master io_send,
-    IRecvRequest.master io_recv
-);
+//     IInstr.master instr_mem,
+//     ICache.master cache,
+//     ISendRequest.master io_send,
+//     IRecvRequest.master io_recv
+// );
     
-endmodule
+// endmodule

@@ -33,7 +33,7 @@ module Core (
     
     InstructionFetch instr_fetch (
         .clock, .reset,
-        .instr_mem(instr_mem.master),
+        .instr_mem(instr_mem),
         .branch_result(branch_result.receiver),
         .if_result(if_result.sender)
     );
@@ -41,7 +41,7 @@ module Core (
     InstructionDecode instr_decode (
         .clock, .flash,
         .if_result(if_result.receiver),
-        .complete_info(comlete_info.receiver),
+        .complete_info(complete_info.receiver),
         .commit_info(commit_info.receiver),
         .commit_entry(commit_entry.sender),
         .commit_id,
@@ -64,7 +64,7 @@ module Core (
         .commit_id
     );
 
-    ResultQueue #(NUM_Q = 5) result_q (
+    ResultQueue #(.NUM_Q(5)) result_q (
         .clock, .flash,
         .r_vec(result_vec),
         .complete_info(complete_info.sender)

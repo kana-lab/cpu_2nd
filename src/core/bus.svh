@@ -20,9 +20,9 @@ interface Message #(
         output reject
     );
 
-    function send_failed ();
-        return this.en & this.rejected;
-    endfunction
+    // function send_failed ();
+    //     return this.en & this.rejected;
+    // endfunction
 endinterface
 
 typedef struct {
@@ -158,7 +158,7 @@ typedef struct packed {
             logic miss;
             logic taken;
             u16 new_pc;
-            logic [21:0] buf_;
+            logic [29:0] buf_;
         } branch;
     } content;
 } Result;

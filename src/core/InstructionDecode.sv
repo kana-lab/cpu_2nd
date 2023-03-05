@@ -119,7 +119,7 @@ module decode_mem_instr (
             mem_instr.r.load.dest_logic = instr[23:16];
             mem_instr.r.load.dest_phys = dest_phys;
         end else begin
-            mem_Instr.r.store = src1;
+            mem_instr.r.store = src1;
         end
     end
 endmodule
@@ -157,15 +157,15 @@ module create_commit (
     always_comb begin
         if (commit_entry.kind) begin
             commit_entry.fin = 'd0;
-            commit_entry.branch.miss = 'd0;
-            commit_entry.branch.current_pc = pc;
+            commit_entry.content.branch.miss = 'd0;
+            commit_entry.content.branch.current_pc = pc;
         end else begin
             commit_entry.fin = instr[31] & instr[30] & ~instr[27];
-            commit_entry.wb.dest_logic = (
+            commit_entry.content.wb.dest_logic = (
                 instr[31:30] == 'b00 && instr[27:26] == 'b11
             ) ? instr[7:0] : instr[23:16];
-            commit_entry.wb.notify[0] = ~((instr[31] ^ instr[30]) | instr[27] | ~instr[26]);
-            commit_entry.wb.notify[1] = instr[31] & instr[30] & ~instr[27] & ~instr[26];
+            commit_entry.content.wb.notify[0] = ~((instr[31] ^ instr[30]) | instr[27] | ~instr[26]);
+            commit_entry.content.wb.notify[1] = instr[31] & instr[30] & ~instr[27] & ~instr[26];
         end
     end
 endmodule
@@ -180,7 +180,7 @@ module InstructionDecode (
     Message.receiver commit_info,
     Message.sender commit_entry,
     input w8 commit_id,
-    
+
     Message.sender alu_instr,
     Message.sender fpu_instr,
     Message.sender branch_instr,
@@ -188,9 +188,12 @@ module InstructionDecode (
     Message.sender uart_instr
 );
     assign if_result.reject = (
-        alu_instr.send_failed() | fpu_instr.send_failed() |
-        branch_instr.send_failed() | memory_instr.send_failed() |
-        uart_instr.send_failed() | commit_entry.send_failed()
+        // alu_instr.send_failed() | fpu_instr.send_failed() |
+        // branch_instr.send_failed() | memory_instr.send_failed() |
+        // uart_instr.send_failed() | commit_entry.send_failed()
+        (alu_instr.en & alu_instr.reject) | (fpu_instr.en & fpu_instr.reject) |
+        (branch_instr.en & branch_instr.reject) | (memory_instr.en & memory_instr.reject) |
+        (uart_instr.en & uart_instr.reject) | (commit_entry.en & commit_entry.reject)
     );
 
     // 命令からレジスタファイルに送るdest, srcを抽出
@@ -254,7 +257,7 @@ module InstructionDecode (
         // processed1_latch <= processed1;
 
         if (
-            compelte_info.en && ~complete_info.msg.kind && ~processed2.valid &&
+            complete_info.en && ~complete_info.msg.kind && ~processed2.valid &&
             complete_info.msg.content.wb.dest_phys == processed2.content.tag
         ) begin
             processed2_latch.valid <= 'd1;
@@ -285,14 +288,14 @@ module InstructionDecode (
     decode_bu_instr decode_bu_instr (
         .flash, .instr(instr_ppl), .approx(approx_ppl), .pc(pc_ppl),
         .commit_id, .src1(processed1), .src2(processed2),
-        .bu_en, .bu_instr
+        .bu_en, .bu_instr(branch_instr.msg)
     );
     assign branch_instr.en = bu_en & ~commit_entry.reject & if_result.en;
 
     wire mem_en;
     decode_mem_instr decode_mem_instr (
         .flash, .instr(instr_ppl), .dest_phys, .commit_id,
-        .src1(processed1), .src2(processed2), .mem_en, .mem_instr
+        .src1(processed1), .src2(processed2), .mem_en, .mem_instr(memory_instr.msg)
     );
     assign memory_instr.en = mem_en & ~commit_entry.reject & if_result.en;
 
