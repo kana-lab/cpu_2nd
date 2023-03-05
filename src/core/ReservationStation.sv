@@ -319,9 +319,87 @@ module FpuRS #(
     assign fpu_instr.reject = full;
 endmodule
 
-module MemRs #(
-    N_LINE_S = 8,
-    N_LINE_L = 8
+// キャッシュとResultQueueを取り持つステートマシン
+module MemoryIntegrator (
+    input wire clock,
+    input wire flash,
+    ICache.master cache,
+    Message.receiver mem_instr_orig,
+    Message.sender mem_result
+);
+    // 入力をラッチし、計算中に変化しないようにする
+    wire en = mem_instr_orig.en & ~mem_instr_orig.reject;
+    MemoryInstr mem_instr_saved, mem_instr;
+    always_ff @(posedge clock) begin
+        if (en)
+            mem_instr_saved <= mem_instr_orig.msg;
+    end
+    assign mem_instr = (en) ? mem_instr_orig.msg : mem_instr_saved;
+
+    Result r;
+    assign r.commit_id = mem_instr.msg.commit_id;
+    assign r.kind = 0;
+    assign r.content.wb.dest_phys = mem_instr.r.load.dest_phys;
+    assign r.content.wb.dest_logic = mem_instr.r.load.dest_logic;
+    assign r.conetne.wb.data = cache.rd;
+
+    reg stall_1clock_behind;
+    always_ff @(posedge clock)
+        stall_1clock_behind <= (flash) ? 0 : cache.stall;
+    wire finished = ~cache.stall & stall_1clock_behind;
+
+    // 001: ready
+    // 010: executing
+    // 100: waiting ResultQueue to be ready
+    reg [2:0] state;
+    Result r_saved;
+    always_ff @(posedge clock) begin
+        if (flash) begin
+            state <= 'b001;
+        end else begin
+            if (state[0]) begin
+                if (mem_instr.en)
+                    state <= 'b010;
+            end
+
+            if (state[1]) begin
+                if (finished) begin
+                    r_saved <= r;
+                    
+                    // メモリ書き込みのときはキューを待つ必要は無いが、簡単のため待つことにする
+                    if (mem_result.reject) begin
+                        state <= 'b100;
+                    end else if (~mem_instr.en) begin
+                        state <= 'b001;
+                    end
+                end
+            end
+
+            if (state[2]) begin
+                if (~mem_result.reject) begin
+                    state <= (mem_instr.en) ? 'b010 : 'b001;
+                end
+            end
+        end
+    end
+
+    assign mem_instr_orig.reject = ~(state[0] | (~mem_result.reject & (finished | state[2])));
+    assign cache.en = en;
+    assign cache.we = ~mem_instr.ls;
+    assign cache.addr = (mem_instr.pm) ? (
+        mem_instr.addr.content.data + {24'd0, mem_instr.offset}
+    ) : (
+        mem_instr.addr.content.data - {24'd0, mem_instr.offset}
+    );
+    assign cache.wd = mem_instr.r.store.content.data;
+
+    assign mem_result.en = (finished | state[2]) & mem_result.msg.ls;
+    assign mem_result.msg = (finished) ? r : r_saved;
+endmodule
+
+// とりあえずlwの追い越しはないものとする
+module MemRS #(
+    N_LINE = 16
 ) (
     input wire clock,
     input wire flash,
@@ -331,5 +409,66 @@ module MemRs #(
     Message.receiver notify,
     Message.sender mem_result
 );
+    MemoryInstr entry[N_LINE - 1:0];
+    r8 q_begin, q_end;
 
+    MemoryInstr head;
+    assign head = entry[q_begin];
+    wire full = ((q_end + 'd1) % N_LINE == q_start) ? 'd1 : 'd0;
+    wire empty = (q_begin == q_end) ? 'd1 : 'd0;
+
+    Message #(MemoryInstr) to_cache();
+    MemoryIntegrator mem_i (
+        .clock, .flash, .cache,
+        .mem_instr(to_cache.receiver), .mem_result
+    );
+
+    assign to_cache.en = (
+        ~empty & ~to_cache.reject & ~flash & head.addr.valid &
+        (head.ls | (head.r.store.valid & notify.en))
+    );
+    assign to_cache.msg = head;
+
+    assign mem_instr.reject = full;
+    assign complete_info.reject = 0;
+    assign notify.reject = empty | head.ls | ~head.r.store.valid | to_cache.reject;
+
+    always_ff @(posedge clock) begin
+        if (flash) begin
+            q_begin <= 0;
+            q_end <= 0;
+        end else begin
+            // completeをもとにソースレジスタ値を更新
+            if (complete_info.en & ~complete_info.msg.kind) begin
+                for (int i = 0; i < N_LINE; i++) begin
+                    if (
+                        ~entry[i].ls && ~entry[i].r.store.valid &&
+                        entry[i].r.store.content.tag == complete_info.msg.content.wb.dest_phys
+                    ) begin
+                        entry[i].r.store.valid <= 'd1;
+                        entry[i].r.store.content.data <= complete_info.msg.content.wb.data;
+                    end
+
+                    if (
+                        ~entry[i].addr.valid &&
+                        entry[i].addr.content.tag == complete_info.msg.content.wb.dest_phys
+                    ) begin
+                        entry[i].addr.store.valid <= 'd1;
+                        entry[i].addr.content.data <= complete_info.msg.content.wb.data;
+                    end
+                end
+            end
+
+            // エントリの計算が開始されたら削除する
+            if (to_cache.en)
+                q_begin <= (q_begin + 'd1) % N_LINE;
+
+            // エントリの追加にかかる処理
+            if (mem_instr.en & ~full) begin
+                // フォールスルーはレジスタファイルの方で既に実施済み
+                entry[q_end] <= mem_instr.msg;
+                q_end <= (q_end + 'd1) % N_LINE;
+            end
+        end
+    end
 endmodule

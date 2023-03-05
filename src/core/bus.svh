@@ -38,11 +38,11 @@ typedef struct packed {
     u16 jump_addr;
 } BranchResult;
 
-typedef struct {
-    w8 dest_logic;
-    w64 dest_phys;
-    w32 data;
-} CompleteInfo;
+// typedef struct {
+//     w8 dest_logic;
+//     w64 dest_phys;
+//     w32 data;
+// } CompleteInfo;
 
 typedef struct {
     w8 dest_logic;
@@ -88,7 +88,7 @@ typedef struct {
 
 typedef struct {
     u8 commit_id;
-    logic ls;  // load/store
+    logic ls;  // 1: load, 0: store
     logic pm;  // plus/minus of offset
     Source addr;
     u8 offset;
