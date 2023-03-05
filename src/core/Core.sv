@@ -70,28 +70,28 @@ module Core (
         .complete_info(complete_info.sender)
     );
 
-    AluRS alu_rs (
+    AluRS #(.N_LINE(8)) alu_rs (
         .clock, .flash,
         .alu_instr(alu_instr.receiver),
         .complete_info(complete_info.receiver),
         .alu_result(result_vec[0].sender)
     );
 
-    BuRS bu_rs (
+    BuRS #(.N_LINE(8)) bu_rs (
         .clock, .flash,
         .branch_instr(branch_instr.receiver),
         .complete_info(complete_info.receiver),
         .bu_result(result_vec[1].sender)
     );
 
-    FpuRS fpu_rs (
+    FpuRS #(.N_LINE(8)) fpu_rs (
         .clock, .flash,
         .fpu_instr(fpu_instr.receiver),
         .complete_info(complete_info.receiver),
         .fpu_result(result_vec[2].sender)
     );
 
-    UartRS uart_rs (
+    UartRS #(.N_LINE(8)) uart_rs (
         .clock, .flash,
         .uart_instr(uart_instr.receiver),
         .complete_info(complete_info.receiver),
@@ -101,7 +101,7 @@ module Core (
     );
 
     // 未実装
-    MemRS mem_rs (
+    MemRS #(.N_LINE(8)) mem_rs (
         .clock, .flash, .cache,
         .mem_instr(memory_instr.receiver),
         .complete_info(complete_info.receiver),

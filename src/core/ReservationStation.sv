@@ -17,7 +17,7 @@ module AluRS #(
     // RSの空いているインデックスを探すのに用いる
     w8 empty_idx;
     wire full;
-    PriorityEncoder #(N_LINE) (
+    PriorityEncoder #(N_LINE) priority_encoder1 (
         .b(empty), .lsb(empty_idx), .zero(full)
     );
 
@@ -28,7 +28,7 @@ module AluRS #(
     for (genvar i = 0; i < N_LINE; i++) begin
         assign ready[i] = ~empty[i] & entry[i].src1.valid & entry[i].src2.valid;
     end
-    PriorityEncoder #(N_LINE) (
+    PriorityEncoder #(N_LINE) priority_encoder2 (
         .b(ready), .lsb(ready_idx), .zero(not_ready)
     );
 
@@ -93,7 +93,7 @@ module BuRS #(
     // RSの空いているインデックスを探すのに用いる
     w8 empty_idx;
     wire full;
-    PriorityEncoder #(N_LINE) (
+    PriorityEncoder #(N_LINE) priority_encoder1 (
         .b(empty), .lsb(empty_idx), .zero(full)
     );
 
@@ -104,7 +104,7 @@ module BuRS #(
     for (genvar i = 0; i < N_LINE; i++) begin
         assign ready[i] = ~empty[i] & entry[i].src1.valid & entry[i].src2.valid;
     end
-    PriorityEncoder #(N_LINE) (
+    PriorityEncoder #(N_LINE) priority_encoder2 (
         .b(ready), .lsb(ready_idx), .zero(not_ready)
     );
 
@@ -201,7 +201,9 @@ module UartRS #(
             if (q_begin != q_end) begin
                 if (head.sr) begin
                     if (notify.en && ~notify.reject) begin
-                        io_send.send(head.operand.send.content.data);
+                        // io_send.send(head.operand.send.content.data);
+                        io_send.en <= 'd1;
+                        io_send.content <= head.operand.send.content.data;
                         q_begin <= (q_begin + 'd1) % N_LINE;
                     end
                 end else begin
@@ -254,7 +256,7 @@ module FpuRS #(
     // RSの空いているインデックスを探すのに用いる
     w8 empty_idx;
     wire full;
-    PriorityEncoder #(N_LINE) (
+    PriorityEncoder #(N_LINE) priority_encoder1 (
         .b(empty), .lsb(empty_idx), .zero(full)
     );
 
@@ -265,7 +267,7 @@ module FpuRS #(
     for (genvar i = 0; i < N_LINE; i++) begin
         assign ready[i] = ~empty[i] & entry[i].src1.valid & entry[i].src2.valid;
     end
-    PriorityEncoder #(N_LINE) (
+    PriorityEncoder #(N_LINE) priority_encoder2 (
         .b(ready), .lsb(ready_idx), .zero(not_ready)
     );
 

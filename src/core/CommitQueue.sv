@@ -41,7 +41,7 @@
 
 // LUTが溢れないかが心配すぎる。。。
 module CommitQueue #(
-    Q_SIZE = 256
+    Q_SIZE = 128
 ) (
     input wire clock,
     input wire flash,
@@ -65,6 +65,7 @@ module CommitQueue #(
     // queueのindexを宣言
     r8 q_begin, q_end;
     CommitEntry entry[Q_SIZE - 1:0];
+    wire empty = (q_begin == q_end) ? 'd1 : 'd0;
 
     CommitEntry head;
     assign head = entry[q_begin];
@@ -91,19 +92,20 @@ module CommitQueue #(
                 end
             end
 
-            // TODO: q_begin == q_endの場合が考慮されていないのでは？
-            if (head.kind) begin
-                if (head.fin)
-                    q_begin <= (q_begin + 'd1) % Q_SIZE;
-            end else begin
-                if (head.content.wb.notify == 'b00) begin
+            if (~empty) begin
+                if (head.kind) begin
                     if (head.fin)
                         q_begin <= (q_begin + 'd1) % Q_SIZE;
                 end else begin
-                    if (notify[0].en)
-                        entry[q_begin].content.wb.notify[0] <= 0;
-                    if (notify[1].en)
-                        entry[q_begin].content.wb.notify[1] <= 0;
+                    if (head.content.wb.notify == 'b00) begin
+                        if (head.fin)
+                            q_begin <= (q_begin + 'd1) % Q_SIZE;
+                    end else begin
+                        if (notify[0].en)
+                            entry[q_begin].content.wb.notify[0] <= 0;
+                        if (notify[1].en)
+                            entry[q_begin].content.wb.notify[1] <= 0;
+                    end
                 end
             end
         end
@@ -116,13 +118,13 @@ module CommitQueue #(
 
         commit_id = q_end;
 
-        branch_result.en = head.fin & head.kind;
+        branch_result.en = head.fin & head.kind & ~empty;
         branch_result.msg = head.content.branch;
-        commit_info.en = (head.fin && ~head.kind && ~head.notify_only && head.content.wb.notify == 'b00) ? 'd1 : 'd0;
+        commit_info.en = (~empty && head.fin && ~head.kind && ~head.notify_only && head.content.wb.notify == 'b00) ? 'd1 : 'd0;
         commit_info.msg.dest_logic = head.content.wb.dest_logic;
         commit_info.msg.data = head.content.wb.data;
 
-        notify[0].en = ~head.kind & head.content.wb.notify[0] & notify[0].reject;
-        notify[1].en = ~head.kind & head.content.wb.notify[1] & notify[1].reject;
+        notify[0].en = ~head.kind & head.content.wb.notify[0] & notify[0].reject & ~empty;
+        notify[1].en = ~head.kind & head.content.wb.notify[1] & notify[1].reject & ~empty;
     end
 endmodule

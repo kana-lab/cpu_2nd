@@ -53,7 +53,7 @@ typedef struct {
     logic valid;
     union {
         u32 data;
-        u64 tag;
+        u16 tag;
     } content;
 } Source;
 
@@ -62,7 +62,7 @@ typedef struct {
     logic [1:0] aux_op;
     logic [2:0] funct3;
     u8 dest_logic;
-    u64 dest_phys;
+    u16 dest_phys;
     Source src1;
     Source src2;
 } AluInstr;
@@ -71,7 +71,7 @@ typedef struct {
     u8 commit_id;
     logic [4:0] funct5;
     u8 dest_logic;
-    u64 dest_phys;
+    u16 dest_phys;
     Source src1;
     Source src2;
 } FpuInstr;
@@ -96,7 +96,7 @@ typedef struct {
         Source store;
         struct {
             u8 dest_logic;
-            u64 dest_phys;
+            u16 dest_phys;
         } load;
     } r;
 } MemoryInstr;
@@ -108,7 +108,7 @@ typedef struct {
         Source send;
         struct {
             u8 dest_logic;
-            u64 dest_phys;
+            u16 dest_phys;
         } recv;
     } operand;
 } UartInstr;

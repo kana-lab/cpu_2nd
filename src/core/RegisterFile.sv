@@ -7,7 +7,7 @@ typedef struct {
     reg phys_valid;
     union {
         w32 data;
-        w64 tag;
+        w16 tag;
     } phys;
 } Register;
 
