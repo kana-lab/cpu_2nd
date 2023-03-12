@@ -56,6 +56,7 @@ module InstructionFetch (
     Message.sender if_result
 );
     localparam R_ret = 8'd253;
+    assign branch_result.reject = 0;
 
     r16 pc;  // 16bit確保はするが、実際は下位15bitのみ使用する
     w32 instr;

@@ -41,7 +41,7 @@
 
 // LUTが溢れないかが心配すぎる。。。
 module CommitQueue #(
-    Q_SIZE = 128
+    Q_SIZE = 64
 ) (
     input wire clock,
     input wire flash,

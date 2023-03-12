@@ -31,7 +31,7 @@ endmodule
 module decode_alu_instr (
     input wire flash,
     input w32 instr,
-    input w64 dest_phys,
+    input w16 dest_phys,
     input Source src1,
     input Source src2,
     input w8 commit_id,
@@ -54,7 +54,7 @@ endmodule
 module decode_fpu_instr (
     input wire flash,
     input w32 instr,
-    input w64 dest_phys,
+    input w16 dest_phys,
     input Source src1,
     input Source src2,
     input w8 commit_id,
@@ -98,7 +98,7 @@ endmodule
 module decode_mem_instr (
     input wire flash,
     input w32 instr,
-    input w64 dest_phys,
+    input w16 dest_phys,
     input Source src1,
     input Source src2,
     input w8 commit_id,
@@ -127,7 +127,7 @@ endmodule
 module decode_uart_instr (
     input wire flash,
     input w32 instr,
-    input w64 dest_phys,
+    input w16 dest_phys,
     input Source src2,
     input w8 commit_id,
     output wire uart_en,
@@ -211,7 +211,7 @@ module InstructionDecode (
 
     // レジスタファイルの宣言
     Source read1, read2;
-    w64 dest_phys;
+    w16 dest_phys;
     RegisterFile rf (
         .clock, .flash, .dest_en, .dest_logic, .src1, .src2,
         .complete_info, .commit_info, .read1, .read2, .dest_phys
@@ -221,11 +221,15 @@ module InstructionDecode (
     r32 instr_ppl;
     r16 pc_ppl;
     reg approx_ppl;
+    reg en_ppl;
     always_ff @(posedge clock) begin
-        if (~if_result.reject) begin
+        if (flash) begin
+            en_ppl <= 0;
+        end else if (~if_result.reject) begin
             instr_ppl <= instr;
             pc_ppl <= if_result.msg.pc;
             approx_ppl <= if_result.msg.approx;
+            en_ppl <= if_result.en;
         end
     end
 
@@ -238,32 +242,36 @@ module InstructionDecode (
     );
     // リジェクト時の再送処理 (フォールスルーに注意)
     Source processed1_latch, processed2_latch;
-    Source processed1, processed2;
+    Source processed1_raw, processed2_raw, processed1, processed2;
     reg reject_1clock_behind;
-    assign processed1 = (reject_1clock_behind) ? processed1_latch : processed1_orig;
-    assign processed2 = (reject_1clock_behind) ? processed2_latch : processed2_orig;
+    assign processed1_raw = (reject_1clock_behind) ? processed1_latch : processed1_orig;
+    assign processed2_raw = (reject_1clock_behind) ? processed2_latch : processed2_orig;
     always_ff @(posedge clock) begin
         reject_1clock_behind <= if_result.reject;
+        processed1_latch <= processed1;
+        processed2_latch <= processed2;
+    end
 
+    always_comb begin
         if (
-            complete_info.en && ~complete_info.msg.kind && ~processed1.valid &&
-            complete_info.msg.content.wb.dest_phys == processed1.content.tag
+            complete_info.en && ~complete_info.msg.kind && ~processed1_raw.valid &&
+            complete_info.msg.content.wb.dest_phys == processed1_raw.content.tag
         ) begin
-            processed1_latch.valid <= 'd1;
-            processed1_latch.content.data <= complete_info.msg.content.wb.data;
+            processed1.valid = 'd1;
+            processed1.content.data = complete_info.msg.content.wb.data;
         end else begin
-            processed1_latch <= processed1;
+            processed1 <= processed1_raw;
         end
         // processed1_latch <= processed1;
 
         if (
-            complete_info.en && ~complete_info.msg.kind && ~processed2.valid &&
-            complete_info.msg.content.wb.dest_phys == processed2.content.tag
+            complete_info.en && ~complete_info.msg.kind && ~processed2_raw.valid &&
+            complete_info.msg.content.wb.dest_phys == processed2_raw.content.tag
         ) begin
-            processed2_latch.valid <= 'd1;
-            processed2_latch.content.data <= complete_info.msg.content.wb.data;
+            processed2.valid = 'd1;
+            processed2.content.data = complete_info.msg.content.wb.data;
         end else begin
-            processed2_latch <= processed2;
+            processed2 = processed2_raw;
         end
         // processed2_latch <= processed2;
     end
@@ -275,14 +283,14 @@ module InstructionDecode (
         .flash, .instr(instr_ppl), .dest_phys, .commit_id,
         .src1(processed1), .src2(processed2), .alu_en, .alu_instr(alu_instr.msg)
     );
-    assign alu_instr.en = alu_en & ~commit_entry.reject & if_result.en;
+    assign alu_instr.en = alu_en & ~commit_entry.reject & en_ppl;
 
     wire fpu_en;
     decode_fpu_instr decode_fpu_instr (
         .flash, .instr(instr_ppl), .dest_phys, .commit_id,
         .src1(processed1), .src2(processed2), .fpu_en, .fpu_instr(fpu_instr.msg)
     );
-    assign fpu_instr.en = fpu_en & ~commit_entry.reject & if_result.en;
+    assign fpu_instr.en = fpu_en & ~commit_entry.reject & en_ppl;
 
     wire bu_en;
     decode_bu_instr decode_bu_instr (
@@ -290,25 +298,33 @@ module InstructionDecode (
         .commit_id, .src1(processed1), .src2(processed2),
         .bu_en, .bu_instr(branch_instr.msg)
     );
-    assign branch_instr.en = bu_en & ~commit_entry.reject & if_result.en;
+    assign branch_instr.en = bu_en & ~commit_entry.reject & en_ppl;
 
     wire mem_en;
     decode_mem_instr decode_mem_instr (
         .flash, .instr(instr_ppl), .dest_phys, .commit_id,
         .src1(processed1), .src2(processed2), .mem_en, .mem_instr(memory_instr.msg)
     );
-    assign memory_instr.en = mem_en & ~commit_entry.reject & if_result.en;
+    assign memory_instr.en = mem_en & ~commit_entry.reject & en_ppl;
 
     wire uart_en;
     decode_uart_instr decode_uart_instr (
         .flash, .instr(instr_ppl), .dest_phys, .src2(processed2),
         .commit_id, .uart_en, .uart_instr(uart_instr.msg)
     );
-    assign uart_instr.en = uart_en & ~commit_entry.reject & if_result.en;
+    assign uart_instr.en = uart_en & ~commit_entry.reject & en_ppl;
 
     // コミットキューにデータを渡す
-    assign commit_entry.en = if_result.en & ~flash;
+    assign commit_entry.en = en_ppl & ~flash;
     create_commit create_commit(
         .instr(instr_ppl), .pc(pc_ppl), .commit_entry(commit_entry.msg)
     );
+
+    // always @(posedge clock) begin
+    //     if (alu_instr.en) $display("[alu_en] %p", alu_instr.msg);
+    //     if (fpu_instr.en) $display("[fpu_en] %p", fpu_instr.msg);
+    //     if (branch_instr.en) $display("[bu_en] %p", branch_instr.msg);
+    //     if (memory_instr.en) $display("[mem_en] %p", memory_instr.msg);
+    //     if (uart_instr.en) $display("[uart_en] %p", uart_instr.msg);
+    // end
 endmodule

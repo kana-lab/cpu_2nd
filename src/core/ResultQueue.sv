@@ -12,11 +12,11 @@ module PartialResultQueueInst #(
 ) (
     input wire clock,
     input w8 w_addr,
-    input wire [48:0] w_data,
+    input wire [56:0] w_data,
     input w8 r_addr,
-    output wire [48:0] r_data
+    output wire [56:0] r_data
 );
-    (* ram_style = "block" *)reg [48:0] bram[Q_SIZE - 1:0];
+    (* ram_style = "block" *)reg [56:0] bram[Q_SIZE - 1:0];
 
     always_ff @(posedge clock) begin
         bram[w_addr] <= w_data;
@@ -30,13 +30,13 @@ module PartialResultQueue #(
 ) (
     input wire clock,
     input w8 w_addr,
-    input wire [48:0] w_data,
+    input wire [56:0] w_data,
     input w8 r_addr,
-    output reg [48:0] r_data
+    output reg [56:0] r_data
 );
-    wire [48:0] read_tmp;
+    wire [56:0] read_tmp;
     PartialResultQueueInst #(.Q_SIZE(Q_SIZE)) inst (
-        .clock, .w_addr, .w_data, .r_data(read_tmp)
+        .clock, .w_addr, .w_data, .r_addr, .r_data(read_tmp)
     );
 
     always_ff @(posedge clock) begin
@@ -61,9 +61,9 @@ module ResultQueue #(
 
     // リザベーションステーション毎にキューを用意
     w8 pq_w_addr[N - 1:0];
-    wire [48:0] pq_w_data[N - 1:0];
+    wire [56:0] pq_w_data[N - 1:0];
     w8 pq_r_addr[N - 1:0];
-    wire [48:0] pq_r_data[N - 1:0];
+    wire [56:0] pq_r_data[N - 1:0];
     for(genvar i = 0; i < N; i++) begin
         PartialResultQueue q (
             .clock, .w_addr(pq_w_addr[i]),
@@ -80,7 +80,7 @@ module ResultQueue #(
     wire [N - 1:0] will_be_written;
     Result [N - 1:0] msg_vec;
     w8 offset_q, offset_input;
-    wire empty_q, empry_input;
+    wire empty_q, empty_input;
     for (genvar i = 0; i < N; i++) begin
         assign ready_q[i] = (q_end[i] != q_begin[i]) ? 'd1 : 'd0;
         // todo: fullであってもそのクロックでpopされる場合はOK
@@ -124,9 +124,21 @@ module ResultQueue #(
                 if (empty_q) begin
                     for (int i = 0; i < N; i++) begin
                         // if (r_vec[i].en && i != offset_input)
-                        if (ready_input[i] & i != offset_input)
-                            q_end[i] <= (q_end[i] + 'd1) % 'd32;
+                        if (ready_input[i] && 8'(i) != offset_input) begin
+                            q_end[i] <= 8'((q_end[i] + 'd1) % 'd32);
+                            $display("hello, %0h:%0h", i, ((q_end[i] + 'd1) % 'd32));
+                        end
+                        
+                        $display("i: %0h, offset_input: %0h ?: %0h, ready:%0h", i, offset_input, i != offset_input, ready_input[i]);
                     end
+                        // if (ready_input[0] && 8'(0) != offset_input) begin
+                        //     q_end[0] <= 8'((q_end[0] + 'd1) % 'd32);
+                        //     $display("hello, %0h:%0h", 0, ((q_end[0] + 'd1) % 'd32));
+                        // end
+                        // if (ready_input[1] && 8'(1) != offset_input) begin
+                        //     q_end[1] <= 8'((q_end[1] + 'd1) % 'd32);
+                        //     $display("hello, %0h:%0h", 1, ((q_end[1] + 'd1) % 'd32));
+                        // end
 
                     fall_through_exist <= ~empty_input;
                     // fall_through <= r_vec[offset_input].msg;
@@ -143,7 +155,7 @@ module ResultQueue #(
 
                 if (~empty_q_ppl) begin
                     if (~fall_through_exist)
-                        q_begin[offset_q_ppl] <= q_begin[offset_q_ppl] + 'd1;
+                        q_begin[offset_q_ppl] <= (q_begin[offset_q_ppl] + 'd1) % 'd32;
                 end
             end else begin
                 for (int i = 0; i < N; i++) begin

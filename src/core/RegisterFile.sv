@@ -27,13 +27,13 @@ module RegisterFile (
 
     output Source read1,
     output Source read2,
-    output r64 dest_phys
+    output r16 dest_phys
 );
     assign complete_info.reject = 'd0;
     assign commit_info.reject = 'd0;
 
     Register register[255:0];
-    r64 tag_generator;
+    r16 tag_generator;
 
     wire complete_established = (
         complete_info.en && ~complete_info.msg.kind &&
@@ -46,12 +46,15 @@ module RegisterFile (
             tag_generator <= 0;
             for (int i = 0; i < 256; i++)
                 register[i].place <= 0;
+            register[255].arch_data <= 0;  // zeroレジスタの処理をサボる
+            register[255].phys_valid <= 'd1;
         end else begin
             if (dest_en) begin
                 tag_generator <= tag_generator + 'd1;
                 register[dest_logic].place <= 'd1;
                 register[dest_logic].phys_valid <= 0;
-                register[dest_logic].phys.tag <= dest_phys;
+                register[dest_logic].phys.tag <= tag_generator;
+                dest_phys <= tag_generator;
             end
 
             if (commit_info.en)
